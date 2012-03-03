@@ -24,6 +24,8 @@
 #define EPRINT(level,args...) GPRINT(level,stderr,args) //Prints message to stderr if level is <= verbosity
 #define PRINT(level,args...) GPRINT(level,stdout,args) //Prints to stdout of level <= verbosity
 
+
+
 /******* The structures the graph will be built upon *********/
   
 /**
@@ -58,8 +60,9 @@ int verbosity = NORMAL;
 node * allthenodesHead;
 node * first = NULL; //the first node inte the node list, i.e. the node with the lowest id
 node * entrypoint = NULL; // the entry point to the graph, i.e. the first node to be created
-node * solution[];
 
+
+int insideTravelGraph(node * visitedNodes[], int noVisited, node * currNode, node * solution[]);
 
 /******* Functions for graph management **********/
 
@@ -238,18 +241,21 @@ bool visit(node * currNode, node * visitedNodes[], int * noVisited) {
 }
 
 int travelGraph() {
+	node * solution[noNodes];
 	node * visitedNodes[noNodes];
 	int shortestPath = -1;
-	solution = (node *)malloc(noNodes * sizeof(node *));
 
 	for(int i=0;i<noNodes;i++) { //Zero out visited array
-		visited[i] = 0;
+		visitedNodes[i] = 0;
 	}
-	insideTravelGraph(visitedNodes, 0, entrypoint, &shortestPath);
+	shortestPath = insideTravelGraph(visitedNodes, 0, entrypoint, solution);
+	for(int i=0;i<noNodes;i++) {
+		printf("%c ", solution[i]->id);
+	}
 	return shortestPath;
 }
 
-int insideTravelGraph(node * visitedNodes[noNodes], int noVisited, node * currNode) {
+int insideTravelGraph(node * visitedNodes[], int noVisited, node * currNode, node * solution[]) {
 	if(!visit(currNode, visitedNodes, &noVisited)) return -1;
 
 	int bestPath = -1;
@@ -257,7 +263,7 @@ int insideTravelGraph(node * visitedNodes[noNodes], int noVisited, node * currNo
 
 	edge * e = currNode->edges;
 	while(e != NULL) {
-		int thisPath = insideTravelGraph(e->endpoint);
+		int thisPath = insideTravelGraph(visitedNodes, noVisited, e->endpoint, solution);
 		if(bestPath < 0 || thisPath < bestPath) {
 			bestPath = thisPath;
 			bestNode = e->endpoint;
