@@ -13,7 +13,7 @@
 #define INFO 2
 
 /* I really like to use boolean values */
-#define bool char
+//#define bool char
 #define true 1
 #define false 0
 
@@ -52,6 +52,7 @@ struct struct_edge {
 
 typedef struct struct_node node;
 typedef struct struct_edge edge;
+typedef char bool;
 
 FILE * graphFile;
 int edgeid = 1;
@@ -62,7 +63,7 @@ node * first = NULL; //the first node inte the node list, i.e. the node with the
 node * entrypoint = NULL; // the entry point to the graph, i.e. the first node to be created
 
 
-int insideTravelGraph(node * visitedNodes[], int noVisited, node * currNode, node * solution[]);
+int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node * currNode, node * solution[]);
 
 /******* Functions for graph management **********/
 
@@ -127,23 +128,20 @@ node * getNode(char cNode) {		//Adds a new node to the list of nodes
 }
 
 void addToEdgeList(node * n, edge * e) {
-	printf("adding to edge list\n");
 	if(n->no_edges==0) { //No edges on this node yet.
-		printf("setting first edge\n");
+		PRINT(DEBUG,"Setting first edge on %c\n", n->id);
 		n->edges = e;
 	}
 	else {
-		printf("adding another edge to node %d\n",n->id);
+		PRINT(DEBUG,"Adding another edge to node %c\n",n->id);
 		edge * edgeptr = n->edges;
 		while(edgeptr->next) edgeptr = edgeptr->next; //Find the last edge in the list
 		edgeptr->next = e;
 	}
-	printf("increase counter\n");
 	n->no_edges++;
 }
 
 void addEdges(node * endpoint1, node * endpoint2, int weight) {
-	printf("adding edge 1\n");
 	//Add edge one way
 	edge * e;
 	e=(edge *)malloc(sizeof(edge));
@@ -153,7 +151,6 @@ void addEdges(node * endpoint1, node * endpoint2, int weight) {
 	e->next = NULL;
 	addToEdgeList(endpoint1, e);
 
-	printf("adding edge 2\n");
 	//Add edge the other way
 	e=(edge *)malloc(sizeof(edge));
 	e->id = edgeid++;
@@ -208,7 +205,7 @@ void freeAllNodes(node * start) {
 	node * next;
 	while(curr != NULL) {
 		next = curr->next;
-		PRINT(DEBUG,"Freeing node %c - 0x%08x\n",curr->id, curr);
+		EPRINT(DEBUG,"Freeing node %c - 0x%08x\n",curr->id, curr);
 		removeNode(curr);
 		curr = next;
 	}
@@ -216,24 +213,33 @@ void freeAllNodes(node * start) {
 
 
 bool visit(node * currNode, node * visitedNodes[], int * noVisited) {
+	printf("Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
+	if(*noVisited > noNodes) {
+		return false;
+	}
 	if(*noVisited == noNodes) {
-		if(currNode != entrypoint) {
-			return false;
+		printf("Last node... ");
+		if(currNode == entrypoint) {
+			printf("%c is the goal. Ok\n", currNode->id);
+			return true;
 		}
 		else {
-			visitedNodes[*noVisited] = currNode;
-			++(*noVisited);
-			return true;
+			printf("%c isn't the goal. Failing\n", currNode->id);
+			return false;
 		}
 	}
 	else {
 		for(int i=0;i<*noVisited;i++) {
+			printf("Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
 			if(currNode == visitedNodes[i]) {
+				printf("match, can't visit again\n");
 				return false;
 			}
+			printf("no match\n");
 		}
 		visitedNodes[*noVisited] = currNode;
-		++(*noVisited);
+		(*noVisited)++;
+		printf("%c haven't been visited yet\n",currNode->id);
 		return true;
 	}
 	EPRINT(CRITICAL,"Reached end of visit(). This shouldn't be possible!\n");
@@ -241,36 +247,63 @@ bool visit(node * currNode, node * visitedNodes[], int * noVisited) {
 }
 
 int travelGraph() {
-	node * solution[noNodes];
+	node * solution[noNodes+1];
 	node * visitedNodes[noNodes];
 	int shortestPath = -1;
 
 	for(int i=0;i<noNodes;i++) { //Zero out visited array
 		visitedNodes[i] = 0;
 	}
-	shortestPath = insideTravelGraph(visitedNodes, 0, entrypoint, solution);
-	for(int i=0;i<noNodes;i++) {
-		printf("%c ", solution[i]->id);
+	shortestPath = insideTravelGraph(visitedNodes, 0, 0, entrypoint, solution);
+	solution[0] = entrypoint;
+	solution[noNodes] = entrypoint;
+
+//Testing things
+	node * curr = first;
+	for(int i=0;i<noNodes+1; i++) {
+		printf("%c at %08x -- %c resides at %08x\n",solution[i] != NULL ? solution[i]->id : '?', solution[i], curr != NULL ? curr->id : '?', curr);
+		curr = curr->next;
 	}
+
+
+	PRINT(CRITICAL,"%c",entrypoint->id);
+	for(int i=0;i<=noNodes;i++) { //Notice the less than or EQUAL
+		PRINT(CRITICAL," %c", solution[i]->id);
+	}
+	PRINT(CRITICAL,": %d\n",shortestPath);
 	return shortestPath;
 }
 
-int insideTravelGraph(node * visitedNodes[], int noVisited, node * currNode, node * solution[]) {
-	if(!visit(currNode, visitedNodes, &noVisited)) return -1;
-
-	int bestPath = -1;
-	node * bestNode;
-
-	edge * e = currNode->edges;
-	while(e != NULL) {
-		int thisPath = insideTravelGraph(visitedNodes, noVisited, e->endpoint, solution);
-		if(bestPath < 0 || thisPath < bestPath) {
-			bestPath = thisPath;
-			bestNode = e->endpoint;
+int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node * currNode, node * solution[]) {
+	if(visit(currNode, visitedNodes, &noVisited)) {
+		if(noVisited == noNodes) {
+			return costSoFar;
 		}
-	}
-	solution[noNodes-(noVisited-1)] = bestNode;
-	return bestPath;
+		else {
+			int bestPathCost = -1;
+			edge * bestPath = NULL;
+			edge * e = currNode->edges;
+			while(e != NULL) { //Just nu finns det inget i koden som säger att vägen måste sitta ihop. FIXA!
+				printf("\n\n"); //Planen just nu är att använda costSoFar för att veta i förväg hur stor hela
+								//vägen kommer bli när trädet raseras. Jag gör dock något fel...
+				int thisPathCost = insideTravelGraph(visitedNodes, noVisited, costSoFar+e->weight, e->endpoint, solution);
+				if(thisPathCost >= 0) {
+					if(bestPathCost < 0 || thisPathCost < bestPathCost) {
+						bestPathCost = thisPathCost;
+						bestPath = e;
+					}
+				}
+				e = e->next;
+			}
+			printf("Done traversing edges. BestPathCost = %d\n",bestPathCost);
+			if(bestPathCost >= 0) {
+				printf("** Now setting solution[%d] to %c->%d->%c\n",noVisited,currNode->id,bestPath->weight,bestPath->endpoint->id);
+				solution[noVisited] = bestPath->endpoint;
+				return bestPathCost;
+			}
+		}
+	}	
+	return -1;
 }
 
 
@@ -284,7 +317,7 @@ int parseGraphFile(FILE * file) {
 	node * ptrB;
 	
 	while((n = fscanf(file,"%c;%d;%c\n",&cNodeA,&weight,&cNodeB)) == 3) {
-		printf("Pr Add: %c -> %d -> %c\n",cNodeA,weight,cNodeB);
+		PRINT(DEBUG,"Pr Add: %c -> %d -> %c\n",cNodeA,weight,cNodeB);
 		ptrA = getNode(cNodeA);
 		ptrB = getNode(cNodeB);
 		addEdges(ptrA, ptrB, weight);
@@ -309,7 +342,10 @@ void setVerbosity(int level) {
 }
 
 int main(int argc, char* argv[]) {
-	short correctInput=1;
+
+
+
+	bool correctInput=true;
 	for(int i=1;i<argc;++i) {
 		if(argv[i][0] == '-') {
 			int j=1;
@@ -324,33 +360,50 @@ int main(int argc, char* argv[]) {
 							  break;
 					case 's': setVerbosity(SILENT); //Print nothing but critical errors
 							  break;
-					default:  correctInput = 0;
-							  EPRINT(CRITICAL,"Unknown parameter -%c.\n",argv[i][j]);
+					default:  correctInput = false;
+							  EPRINT(CRITICAL,"Unknown parameter -%c\n",argv[i][j]);
 							  break;
 				}
 			}
 		}
 		else {
-			EPRINT(VERBOSE,"Trying to read file %s... ",argv[i]);
-			graphFile = fopen(argv[i], "r");
-			if(graphFile == NULL) {
-				EPRINT(VERBOSE, "failed\n");
-				EPRINT(CRITICAL, "Failed to open %s: %s\n",argv[i], strerror(errno));
-				exit(errno);
+			if(first == NULL) {
+				EPRINT(VERBOSE,"Trying to read file %s... ",argv[i]);
+				graphFile = fopen(argv[i], "r");
+				if(graphFile == NULL) {
+					EPRINT(VERBOSE, "failed\n");
+					EPRINT(CRITICAL, "Failed to open %s: %s\n",argv[i], strerror(errno));
+					exit(errno);
+				}
+				else {
+					EPRINT(VERBOSE, "done\n");
+					parseGraphFile(graphFile);
+					PRINT(DEBUG,"Done parsing graph\n");
+					fclose(graphFile);
+				}
 			}
 			else {
-				EPRINT(VERBOSE, "done\n");
-				parseGraphFile(graphFile);
-				fclose(graphFile);
+				EPRINT(ALERT,"Only one file can be supplied per run.\n Ignoring %s\n",argv[i]);
 			}
 		}
 		if(!correctInput) {
 			printHelp(1);
 		}
 	}
+	
+	EPRINT(VERBOSE, "Traveling graph from %c:\n", entrypoint->id);
+	travelGraph();
+/*
+	printf("Entrypoint: %c\n", entrypoint->id);
 
-	listEdges('A');
-	listEdges('B');
+	node * visited[5] = {entrypoint, 0, 0, 0, 0};
+	int noVisited = 4;
+
+	bool ret = visit(entrypoint->edges->next->endpoint, visited, &noVisited);
+	printf("Visited %c, ret: %d\n", entrypoint->edges->next->endpoint->id, ret);
+*/
+//	listEdges('A');
+//	listEdges('B');
 
 	freeAllNodes(first);
 	return 0;
