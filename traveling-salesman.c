@@ -61,6 +61,7 @@ int verbosity = NORMAL;
 node * allthenodesHead;
 node * first = NULL; //the first node inte the node list, i.e. the node with the lowest id
 node * entrypoint = NULL; // the entry point to the graph, i.e. the first node to be created
+int bestPathCost = -1;
 
 
 int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node * currNode, node * solution[]);
@@ -69,7 +70,7 @@ int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node 
 
 node * newNode(char name) {
 	noNodes++;
-	PRINT(DEBUG,"Creating new node %c. Now have %d nodes\n",name,noNodes);
+	EPRINT(DEBUG,"Creating new node %c. Now have %d nodes\n",name,noNodes);
 	node * curr;
 	curr = (node *)malloc(sizeof(node));
 	curr->no_edges = 0;
@@ -90,7 +91,7 @@ node * newNode(char name) {
 node * getNode(char cNode) {		//Adds a new node to the list of nodes
 	node * newnode;
 	if(entrypoint == NULL) {		//First node
-		PRINT(DEBUG,"Adding %c as entry point\n",cNode);
+		EPRINT(DEBUG,"Adding %c as entry point\n",cNode);
 		newnode = newNode(cNode);	//Create node
 		entrypoint = newnode;		//Entrypoint will never change after this initial set
 		first = newnode; 			//First is the first node in the node list
@@ -99,25 +100,25 @@ node * getNode(char cNode) {		//Adds a new node to the list of nodes
 	else { //There are already some nodes in the list
 		node * curr = first;
 		if(cNode < curr->id) { //Should the node be first in the list?
-			PRINT(DEBUG,"Adding %c to node list\n",cNode);
+			EPRINT(DEBUG,"Adding %c to node list\n",cNode);
 			newnode = newNode(cNode);
 			newnode->next = first;
 			first = newnode;
 		}
 		else if(cNode == curr->id) { //Is cNode and first the same node?
-			PRINT(DEBUG,"Node %c already in node list\n",cNode);
+			EPRINT(DEBUG,"Node %c already in node list\n",cNode);
 			newnode = curr;
 		}
 		else { //So where should it be then?
 			while((curr->next != NULL) && (curr->next->id < cNode)) {
-				PRINT(DEBUG,"Node %c already in node list\n",cNode);
+				EPRINT(DEBUG,"Node %c already in node list\n",cNode);
 				curr = curr->next;
 			}
 			if(curr->next != NULL && curr->next->id == cNode) { //Does this node already exist?
 				newnode = curr->next; //Set curr->next to be returned
 			}
 			else { //Insert node into list
-				PRINT(DEBUG,"Adding %c to node list\n",cNode);
+				EPRINT(DEBUG,"Adding %c to node list\n",cNode);
 				newnode = newNode(cNode);
 				newnode->next = curr->next;
 				curr->next = newnode;
@@ -129,11 +130,11 @@ node * getNode(char cNode) {		//Adds a new node to the list of nodes
 
 void addToEdgeList(node * n, edge * e) {
 	if(n->no_edges==0) { //No edges on this node yet.
-		PRINT(DEBUG,"Setting first edge on %c\n", n->id);
+		EPRINT(DEBUG,"Setting first edge on %c\n", n->id);
 		n->edges = e;
 	}
 	else {
-		PRINT(DEBUG,"Adding another edge to node %c\n",n->id);
+		EPRINT(DEBUG,"Adding another edge to node %c\n",n->id);
 		edge * edgeptr = n->edges;
 		while(edgeptr->next) edgeptr = edgeptr->next; //Find the last edge in the list
 		edgeptr->next = e;
@@ -213,33 +214,34 @@ void freeAllNodes(node * start) {
 
 
 bool visit(node * currNode, node * visitedNodes[], int * noVisited) {
-	printf("Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
+//	printf("Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
 	if(*noVisited > noNodes) {
 		return false;
 	}
 	if(*noVisited == noNodes) {
-		printf("Last node... ");
+//		printf("Last node... ");
 		if(currNode == entrypoint) {
-			printf("%c is the goal. Ok\n", currNode->id);
+//			printf("%c is the goal. Ok\n", currNode->id);
+			(*noVisited)++;
 			return true;
 		}
 		else {
-			printf("%c isn't the goal. Failing\n", currNode->id);
+//			printf("%c isn't the goal. Failing\n", currNode->id);
 			return false;
 		}
 	}
 	else {
 		for(int i=0;i<*noVisited;i++) {
-			printf("Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
+//			printf("Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
 			if(currNode == visitedNodes[i]) {
-				printf("match, can't visit again\n");
+//				printf("match, can't visit again\n");
 				return false;
 			}
-			printf("no match\n");
+//			printf("no match\n");
 		}
 		visitedNodes[*noVisited] = currNode;
 		(*noVisited)++;
-		printf("%c haven't been visited yet\n",currNode->id);
+//		printf("%c haven't been visited yet\n",currNode->id);
 		return true;
 	}
 	EPRINT(CRITICAL,"Reached end of visit(). This shouldn't be possible!\n");
@@ -255,54 +257,57 @@ int travelGraph() {
 		visitedNodes[i] = 0;
 	}
 	shortestPath = insideTravelGraph(visitedNodes, 0, 0, entrypoint, solution);
-	solution[0] = entrypoint;
-	solution[noNodes] = entrypoint;
+	if(shortestPath >= 0) {
+		solution[0] = entrypoint;
+		//	solution[noNodes] = entrypoint;
 
-//Testing things
-	node * curr = first;
-	for(int i=0;i<noNodes+1; i++) {
-		printf("%c at %08x -- %c resides at %08x\n",solution[i] != NULL ? solution[i]->id : '?', solution[i], curr != NULL ? curr->id : '?', curr);
-		curr = curr->next;
+		//Testing things
+//		node * curr = first;
+//		for(int i=0;i<noNodes+1; i++) {
+//			printf("%c at %08x -- %c resides at %08x\n",solution[i] != NULL ? solution[i]->id : '?', solution[i], curr != NULL ? curr->id : '?', curr);
+//			if(curr != NULL) curr = curr->next;
+//		}
+
+		for(int i=0;i<=noNodes;i++) { //Notice the less than or EQUAL
+			PRINT(CRITICAL, " %c", solution[i]->id);
+		}
+		PRINT(CRITICAL, ": %d\n",shortestPath);
 	}
-
-
-	PRINT(CRITICAL,"%c",entrypoint->id);
-	for(int i=0;i<=noNodes;i++) { //Notice the less than or EQUAL
-		PRINT(CRITICAL," %c", solution[i]->id);
+	else {
+		PRINT(CRITICAL, "Graph unsolvable :(\n");
 	}
-	PRINT(CRITICAL,": %d\n",shortestPath);
 	return shortestPath;
 }
 
 int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node * currNode, node * solution[]) {
 	if(visit(currNode, visitedNodes, &noVisited)) {
-		if(noVisited == noNodes) {
+		if(noVisited > noNodes) {
+//			printf("Returnerar costSoFar=%d. currNode=%c\n",costSoFar,currNode->id);
 			return costSoFar;
 		}
 		else {
-			int bestPathCost = -1;
 			edge * bestPath = NULL;
 			edge * e = currNode->edges;
 			while(e != NULL) { //Just nu finns det inget i koden som säger att vägen måste sitta ihop. FIXA!
-				printf("\n\n"); //Planen just nu är att använda costSoFar för att veta i förväg hur stor hela
+//				printf("\n\n"); //Planen just nu är att använda costSoFar för att veta i förväg hur stor hela
 								//vägen kommer bli när trädet raseras. Jag gör dock något fel...
 				int thisPathCost = insideTravelGraph(visitedNodes, noVisited, costSoFar+e->weight, e->endpoint, solution);
 				if(thisPathCost >= 0) {
-					if(bestPathCost < 0 || thisPathCost < bestPathCost) {
+					if(bestPathCost < 0 || thisPathCost <= bestPathCost) {
 						bestPathCost = thisPathCost;
 						bestPath = e;
 					}
 				}
 				e = e->next;
 			}
-			printf("Done traversing edges. BestPathCost = %d\n",bestPathCost);
-			if(bestPathCost >= 0) {
-				printf("** Now setting solution[%d] to %c->%d->%c\n",noVisited,currNode->id,bestPath->weight,bestPath->endpoint->id);
+//			printf("Done traversing edges. BestPathCost = %d\n",bestPathCost);
+			if(bestPath != NULL) {
+//				printf("** Now setting solution[%d] to %c->%d->%c\n",noVisited,currNode->id,bestPath->weight,bestPath->endpoint->id);
 				solution[noVisited] = bestPath->endpoint;
 				return bestPathCost;
 			}
 		}
-	}	
+	}
 	return -1;
 }
 
