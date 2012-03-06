@@ -1,3 +1,10 @@
+# Correct solution:
+# A K J I D E G F H C B A: 26
+#
+# Sequential run
+# real	0m6.890s
+# user	0m6.880s
+# sys	0m0.000s
 A;3;B
 B;2;A
 B;4;C
