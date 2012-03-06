@@ -161,19 +161,6 @@ void addEdges(node * endpoint1, node * endpoint2, int weight) {
 	addToEdgeList(endpoint2, e);
 	
 }
-/*
-void buildGraph() {
-	node * curr = NULL; //node currently worked in
-	node * head = NULL; //head of the graph, i.e. curr of the last iteration
-	for(int i=0;i<9;i++) {
-		printf("adding node i=%d\n",i);
-		addToNodeList(nodeid++); //Keep track of all nodes to ease traversing and cleaning up
-		if(head!=NULL) addEdges(first,curr,5);
-
-		head=curr;
-	}
-}
-*/
 
 void listEdges(char cNode) {
 	node * n = getNode(cNode);
@@ -214,34 +201,34 @@ void freeAllNodes(node * start) {
 
 
 bool visit(node * currNode, node * visitedNodes[], int * noVisited) {
-//	printf("Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
+	EPRINT(DEBUG,"Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
 	if(*noVisited > noNodes) {
 		return false;
 	}
 	if(*noVisited == noNodes) {
-//		printf("Last node... ");
+		EPRINT(DEBUG,"Last node... ");
 		if(currNode == entrypoint) {
-//			printf("%c is the goal. Ok\n", currNode->id);
+			EPRINT(DEBUG,"%c is the goal. Ok\n", currNode->id);
 			(*noVisited)++;
 			return true;
 		}
 		else {
-//			printf("%c isn't the goal. Failing\n", currNode->id);
+			EPRINT(DEBUG,"%c isn't the goal. Failing\n", currNode->id);
 			return false;
 		}
 	}
 	else {
 		for(int i=0;i<*noVisited;i++) {
-//			printf("Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
+			EPRINT(DEBUG,"Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
 			if(currNode == visitedNodes[i]) {
-//				printf("match, can't visit again\n");
+				EPRINT(DEBUG,"match, can't visit again\n");
 				return false;
 			}
-//			printf("no match\n");
+			EPRINT(DEBUG,"no match\n");
 		}
 		visitedNodes[*noVisited] = currNode;
 		(*noVisited)++;
-//		printf("%c haven't been visited yet\n",currNode->id);
+		EPRINT(DEBUG,"%c haven't been visited yet\n",currNode->id);
 		return true;
 	}
 	EPRINT(CRITICAL,"Reached end of visit(). This shouldn't be possible!\n");
@@ -259,7 +246,6 @@ int travelGraph() {
 	shortestPath = insideTravelGraph(visitedNodes, 0, 0, entrypoint, solution);
 	if(shortestPath >= 0) {
 		solution[0] = entrypoint;
-		//	solution[noNodes] = entrypoint;
 
 		//Testing things
 //		node * curr = first;
@@ -282,15 +268,12 @@ int travelGraph() {
 int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node * currNode, node * solution[]) {
 	if(visit(currNode, visitedNodes, &noVisited)) {
 		if(noVisited > noNodes) {
-//			printf("Returnerar costSoFar=%d. currNode=%c\n",costSoFar,currNode->id);
 			return costSoFar;
 		}
 		else {
 			edge * bestPath = NULL;
 			edge * e = currNode->edges;
-			while(e != NULL) { //Just nu finns det inget i koden som säger att vägen måste sitta ihop. FIXA!
-//				printf("\n\n"); //Planen just nu är att använda costSoFar för att veta i förväg hur stor hela
-								//vägen kommer bli när trädet raseras. Jag gör dock något fel...
+			while(e != NULL) { 
 				int thisPathCost = insideTravelGraph(visitedNodes, noVisited, costSoFar+e->weight, e->endpoint, solution);
 				if(thisPathCost >= 0) {
 					if(bestPathCost < 0 || thisPathCost <= bestPathCost) {
