@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <omp.h>
 
 #define SILENT 0
 #define NORMAL 1
@@ -38,7 +39,7 @@
 **/
 struct struct_node {
 	char id; 
-	int no_edges;
+	int noEdges;
 	struct struct_edge * edges;
 	struct struct_node * next;
 };
@@ -54,14 +55,14 @@ typedef struct struct_node node;
 typedef struct struct_edge edge;
 typedef char bool;
 
-FILE * graphFile;
+FILE * graphFile = NULL;
 int edgeid = 1;
 int noNodes = 0;
 int verbosity = NORMAL;
 node * allthenodesHead;
 node * first = NULL; //the first node inte the node list, i.e. the node with the lowest id
 node * entrypoint = NULL; // the entry point to the graph, i.e. the first node to be created
-int bestPathCost = -1;
+int bestPathCost = -1; //Used to track the currently shortest known path
 
 
 int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node * currNode, node * solution[]);
@@ -70,10 +71,10 @@ int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node 
 
 node * newNode(char name) {
 	noNodes++;
-	EPRINT(DEBUG,"Creating new node %c. Now have %d nodes\n",name,noNodes);
+	PRINT(DEBUG,"Creating new node %c. Now have %d nodes\n",name,noNodes);
 	node * curr;
 	curr = (node *)malloc(sizeof(node));
-	curr->no_edges = 0;
+	curr->noEdges = 0;
 	curr->edges = NULL;
 	curr->next = NULL;
 	curr->id = name;
@@ -91,7 +92,7 @@ node * newNode(char name) {
 node * getNode(char cNode) {		//Adds a new node to the list of nodes
 	node * newnode;
 	if(entrypoint == NULL) {		//First node
-		EPRINT(DEBUG,"Adding %c as entry point\n",cNode);
+		PRINT(DEBUG,"Adding %c as entry point\n",cNode);
 		newnode = newNode(cNode);	//Create node
 		entrypoint = newnode;		//Entrypoint will never change after this initial set
 		first = newnode; 			//First is the first node in the node list
@@ -100,25 +101,25 @@ node * getNode(char cNode) {		//Adds a new node to the list of nodes
 	else { //There are already some nodes in the list
 		node * curr = first;
 		if(cNode < curr->id) { //Should the node be first in the list?
-			EPRINT(DEBUG,"Adding %c to node list\n",cNode);
+			PRINT(DEBUG,"Adding %c to node list\n",cNode);
 			newnode = newNode(cNode);
 			newnode->next = first;
 			first = newnode;
 		}
 		else if(cNode == curr->id) { //Is cNode and first the same node?
-			EPRINT(DEBUG,"Node %c already in node list\n",cNode);
+			PRINT(DEBUG,"Node %c already in node list\n",cNode);
 			newnode = curr;
 		}
 		else { //So where should it be then?
 			while((curr->next != NULL) && (curr->next->id < cNode)) {
-				EPRINT(DEBUG,"Node %c already in node list\n",cNode);
+				PRINT(DEBUG,"Node %c already in node list\n",cNode);
 				curr = curr->next;
 			}
 			if(curr->next != NULL && curr->next->id == cNode) { //Does this node already exist?
 				newnode = curr->next; //Set curr->next to be returned
 			}
 			else { //Insert node into list
-				EPRINT(DEBUG,"Adding %c to node list\n",cNode);
+				PRINT(DEBUG,"Adding %c to node list\n",cNode);
 				newnode = newNode(cNode);
 				newnode->next = curr->next;
 				curr->next = newnode;
@@ -129,17 +130,17 @@ node * getNode(char cNode) {		//Adds a new node to the list of nodes
 }
 
 void addToEdgeList(node * n, edge * e) {
-	if(n->no_edges==0) { //No edges on this node yet.
-		EPRINT(DEBUG,"Setting first edge on %c\n", n->id);
+	if(n->noEdges==0) { //No edges on this node yet.
+		PRINT(DEBUG,"Setting first edge on %c\n", n->id);
 		n->edges = e;
 	}
 	else {
-		EPRINT(DEBUG,"Adding another edge to node %c\n",n->id);
+		PRINT(DEBUG,"Adding another edge to node %c\n",n->id);
 		edge * edgeptr = n->edges;
 		while(edgeptr->next) edgeptr = edgeptr->next; //Find the last edge in the list
 		edgeptr->next = e;
 	}
-	n->no_edges++;
+	n->noEdges++;
 }
 
 void addEdges(node * endpoint1, node * endpoint2, int weight) {
@@ -193,7 +194,7 @@ void freeAllNodes(node * start) {
 	node * next;
 	while(curr != NULL) {
 		next = curr->next;
-		EPRINT(DEBUG,"Freeing node %c - 0x%08x\n",curr->id, curr);
+		PRINT(DEBUG,"Freeing node %c - 0x%08x\n",curr->id, curr);
 		removeNode(curr);
 		curr = next;
 	}
@@ -201,37 +202,37 @@ void freeAllNodes(node * start) {
 
 
 bool visit(node * currNode, node * visitedNodes[], int * noVisited) {
-	EPRINT(DEBUG,"Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
+	PRINT(DEBUG,"Visit: currNode: %c, noVisited: %d, noNodes: %d\n",currNode->id, *noVisited, noNodes);
 	if(*noVisited > noNodes) {
 		return false;
 	}
 	if(*noVisited == noNodes) {
-		EPRINT(DEBUG,"Last node... ");
+		PRINT(DEBUG,"Last node... ");
 		if(currNode == entrypoint) {
-			EPRINT(DEBUG,"%c is the goal. Ok\n", currNode->id);
+			PRINT(DEBUG,"%c is the goal. Ok\n", currNode->id);
 			(*noVisited)++;
 			return true;
 		}
 		else {
-			EPRINT(DEBUG,"%c isn't the goal. Failing\n", currNode->id);
+			PRINT(DEBUG,"%c isn't the goal. Failing\n", currNode->id);
 			return false;
 		}
 	}
 	else {
 		for(int i=0;i<*noVisited;i++) {
-			EPRINT(DEBUG,"Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
+			PRINT(DEBUG,"Comparing %c to %c... ", currNode->id, visitedNodes[i]->id);
 			if(currNode == visitedNodes[i]) {
-				EPRINT(DEBUG,"match, can't visit again\n");
+				PRINT(DEBUG,"match, can't visit again\n");
 				return false;
 			}
-			EPRINT(DEBUG,"no match\n");
+			PRINT(DEBUG,"no match\n");
 		}
 		visitedNodes[*noVisited] = currNode;
 		(*noVisited)++;
-		EPRINT(DEBUG,"%c haven't been visited yet\n",currNode->id);
+		PRINT(DEBUG,"%c haven't been visited yet\n",currNode->id);
 		return true;
 	}
-	EPRINT(CRITICAL,"Reached end of visit(). This shouldn't be possible!\n");
+	PRINT(CRITICAL,"Reached end of visit(). This shouldn't be possible!\n");
 	return false;
 }
 
@@ -273,15 +274,20 @@ int insideTravelGraph(node * visitedNodes[], int noVisited, int costSoFar, node 
 		else {
 			edge * bestPath = NULL;
 			edge * e = currNode->edges;
-			while(e != NULL) { 
-				int thisPathCost = insideTravelGraph(visitedNodes, noVisited, costSoFar+e->weight, e->endpoint, solution);
+			edge * edges[currNode->noEdges];
+			for(int i=0;i<currNode->noEdges;i++) {
+				edges[i] = e;
+				e=e->next;
+			}
+			for(int i=0;i<currNode->noEdges;i++) { 
+				int thisPathCost = insideTravelGraph(visitedNodes, noVisited, costSoFar+edges[i]->weight, edges[i]->endpoint, solution);
 				if(thisPathCost >= 0) {
 					if(bestPathCost < 0 || thisPathCost <= bestPathCost) {
 						bestPathCost = thisPathCost;
-						bestPath = e;
+						bestPath = edges[i];
 					}
 				}
-				e = e->next;
+//				e = e->next;
 			}
 //			printf("Done traversing edges. BestPathCost = %d\n",bestPathCost);
 			if(bestPath != NULL) {
@@ -304,7 +310,12 @@ int parseGraphFile(FILE * file) {
 	node * ptrA;
 	node * ptrB;
 	
-	while((n = fscanf(file,"%c;%d;%c\n",&cNodeA,&weight,&cNodeB)) == 3) {
+	while((n = fscanf(file,"%c;%d;%c\n",&cNodeA,&weight,&cNodeB)) != EOF) {
+		if(n != 3) {
+			PRINT(DEBUG,"Ignoring line starting with #\n");
+			while(getc(file) != '\n');
+			continue; //Ignore lines starting with #
+		}
 		PRINT(DEBUG,"Pr Add: %c -> %d -> %c\n",cNodeA,weight,cNodeB);
 		ptrA = getNode(cNodeA);
 		ptrB = getNode(cNodeB);
@@ -326,7 +337,7 @@ void setVerbosity(int level) {
 	if(verbosity == NORMAL)
 		verbosity=level;
 	else
-		EPRINT(ALERT,"Verbosity already set. Ignoring\n");
+		PRINT(ALERT,"Verbosity already set. Ignoring\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -349,50 +360,47 @@ int main(int argc, char* argv[]) {
 					case 's': setVerbosity(SILENT); //Print nothing but critical errors
 							  break;
 					default:  correctInput = false;
-							  EPRINT(CRITICAL,"Unknown parameter -%c\n",argv[i][j]);
+							  PRINT(CRITICAL,"Unknown parameter -%c\n",argv[i][j]);
 							  break;
 				}
 			}
 		}
 		else {
 			if(first == NULL) {
-				EPRINT(VERBOSE,"Trying to read file %s... ",argv[i]);
+				PRINT(VERBOSE,"Trying to read file %s... ",argv[i]);
 				graphFile = fopen(argv[i], "r");
 				if(graphFile == NULL) {
-					EPRINT(VERBOSE, "failed\n");
-					EPRINT(CRITICAL, "Failed to open %s: %s\n",argv[i], strerror(errno));
+					PRINT(VERBOSE, "failed\n");
+					PRINT(CRITICAL, "Failed to open %s: %s\n",argv[i], strerror(errno));
 					exit(errno);
 				}
 				else {
-					EPRINT(VERBOSE, "done\n");
+					PRINT(VERBOSE, "done\n");
 					parseGraphFile(graphFile);
 					PRINT(DEBUG,"Done parsing graph\n");
 					fclose(graphFile);
 				}
 			}
 			else {
-				EPRINT(ALERT,"Only one file can be supplied per run.\n Ignoring %s\n",argv[i]);
+				PRINT(ALERT,"Only one file can be supplied per run.\n Ignoring %s\n",argv[i]);
 			}
 		}
 		if(!correctInput) {
 			printHelp(1);
 		}
 	}
-	
-	EPRINT(VERBOSE, "Traveling graph from %c:\n", entrypoint->id);
-	travelGraph();
-/*
-	printf("Entrypoint: %c\n", entrypoint->id);
 
-	node * visited[5] = {entrypoint, 0, 0, 0, 0};
-	int noVisited = 4;
+	//If the graph was read correctly, solve it!
+	if(entrypoint != NULL) {	
+		PRINT(VERBOSE, "Traveling graph from %c:\n", entrypoint->id);
+		travelGraph();
+	}
+	else {
+		PRINT(CRITICAL,"No graph file found (or reading it failed)\n");
+		printHelp(2);
+	}
 
-	bool ret = visit(entrypoint->edges->next->endpoint, visited, &noVisited);
-	printf("Visited %c, ret: %d\n", entrypoint->edges->next->endpoint->id, ret);
-*/
-//	listEdges('A');
-//	listEdges('B');
-
+	//Clean up memory
 	freeAllNodes(first);
 	return 0;
 }
