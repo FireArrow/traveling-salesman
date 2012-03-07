@@ -2,8 +2,8 @@
 # A H C K J I D E F G B A: 24
 #
 # Sequential run
-# real	0m8.441s
-# user	0m8.425s
+# real	0m10.956s
+# user	0m10.933s
 # sys	0m0.004s
 A;3;B
 B;2;A
@@ -62,3 +62,4 @@ J;1;I
 J;1;K
 A;5;K
 K;4;C
+K;7;E
